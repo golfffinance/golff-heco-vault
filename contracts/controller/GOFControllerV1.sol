@@ -9,14 +9,15 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-import  "../interfaces/IGOFStrategy.sol";
-import  "../interfaces/mdex/IMdexRouter.sol";
+import "../interfaces/IGOFController.sol";
+import "../interfaces/IGOFStrategy.sol";
+import "../interfaces/mdex/IMdexRouter.sol";
 
 interface Converter {
     function convert(address) external returns (uint);
 }
 
-contract GOFControllerV1 is Ownable{
+contract GOFControllerV1 is IGOFController, Ownable{
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -34,17 +35,21 @@ contract GOFControllerV1 is Ownable{
 
     uint public split = 500;
     uint public constant max = 10000;
-    address constant public wht = address(0x8543A3E99174913cEeaF8b10e890bC99c4a89420);
+    address constant public wht = address(0x5545153CCFcA01fbd7Dd11C0b23ba694D9509A6F);
 
     constructor(address _rewards) public {
         strategist = tx.origin;
-        onesplit = address(0xbb87D38beEecac5eB602791703763722e3E9F359);
+        onesplit = address(0xED7d5F38C79115ca12fe6C0041abb22F0A06C300);
         rewards = _rewards;
     }
     
     modifier checkStrategist(){
         require(msg.sender == strategist || msg.sender == owner(), "Golff:!strategist");
         _;
+    }
+
+    function setStrategist(address account) public checkStrategist{
+        strategist = account;
     }
 
     function setFactory(address _factory) public onlyOwner{
@@ -88,10 +93,17 @@ contract GOFControllerV1 is Ownable{
         }
         strategies[_token] = _strategy;
     }
+
+    function getRewards() external view override returns (address){
+        return rewards;
+    }
+    function getVaults(address _token) external view override returns (address){
+        return vaults[_token];
+    }
     
-    function earn(address _token, uint _amount) public {
+    function earn(address _token, uint _amount) public override{
         address _strategy = strategies[_token]; 
-        address _want = IGOFStrategy(_strategy).want();
+        address _want = IGOFStrategy(_strategy).getWant();
         if (_want != _token) {
             address converter = converters[_token][_want];
             IERC20(_token).safeTransfer(converter, _amount);
@@ -103,7 +115,7 @@ contract GOFControllerV1 is Ownable{
         IGOFStrategy(_strategy).deposit();
     }
     
-    function balanceOf(address _token) external view returns (uint) {
+    function balanceOf(address _token) external view override returns (uint) {
         return IGOFStrategy(strategies[_token]).balanceOf();
     }
     
@@ -115,9 +127,13 @@ contract GOFControllerV1 is Ownable{
         IERC20(_token).safeTransfer(owner(), _amount);
     }
     
+    function inCaseStrategyTokenGetStuck(address _strategy, address _token) public checkStrategist{
+        IGOFStrategy(_strategy).withdraw(_token);
+    }
+
     function getExpectedReturn(address _strategy, address _token) public view returns (uint expected) {
         uint _balance = IERC20(_token).balanceOf(_strategy);
-        address _want = IGOFStrategy(_strategy).want();
+        address _want = IGOFStrategy(_strategy).getWant();
         // cal out amount
         address[] memory swap2TokenRouting;
         swap2TokenRouting[1] = wht;
@@ -134,7 +150,7 @@ contract GOFControllerV1 is Ownable{
         uint _after =  IERC20(_token).balanceOf(address(this));
         if (_after > _before) {
             uint _amount = _after.sub(_before);
-            address _want = IGOFStrategy(_strategy).want();
+            address _want = IGOFStrategy(_strategy).getWant();
             
             _before = IERC20(_want).balanceOf(address(this));
             IERC20(_token).safeApprove(onesplit, 0);
@@ -157,8 +173,8 @@ contract GOFControllerV1 is Ownable{
         }
     }
     
-    function withdraw(address _token, uint _amount) public {
-        require(msg.sender == vaults[_token], "Golff:!vault");
+    function withdraw(address _token, uint _amount) public override {
+        require(msg.sender == vaults[_token] || msg.sender == strategist, "Golff:!vault");
         IGOFStrategy(strategies[_token]).withdraw(_amount);
     }
 }

@@ -20,18 +20,18 @@ contract GOFVaultHT is ERC20, Ownable {
 
     uint public min = 9990;
     uint public constant max = 10000;
-    uint public earnLowerlimit = 50 ether;
+    uint public earnLowerlimit;
 
     address public controller;
 
-    constructor (address _token, address _controller) 
+    constructor (address _token, address _controller, uint256 _earnLowerlimit) 
     public ERC20(
         string(abi.encodePacked("Golff ", ERC20(_token).name())),
-        "GH-WHT"
+        "G-HECOHT"
     ) {
         token = IERC20(_token);
         controller = _controller;
-
+        earnLowerlimit = _earnLowerlimit;
         _setupDecimals(ERC20(_token).decimals());
     }
 
@@ -101,6 +101,9 @@ contract GOFVaultHT is ERC20, Ownable {
             shares = (_amount.mul(totalSupply())).div(_pool);
         }
         _mint(msg.sender, shares);
+        if (token.balanceOf(address(this))>earnLowerlimit){
+          earn();
+        }
     }
 
     function withdrawAll() external {

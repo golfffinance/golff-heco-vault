@@ -30,19 +30,14 @@ contract GOFVault is ERC20, Ownable{
         uint _earnLowerlimit
     ) public ERC20(
         string(abi.encodePacked("Golff ", ERC20(_token).name())),
-        string(abi.encodePacked("GH-", _symbol))
+        string(abi.encodePacked("G-HECO", _symbol))
     ) {
         token = IERC20(_token);
         controller = _controller;
         earnLowerlimit = _earnLowerlimit;
         _setupDecimals(ERC20(_token).decimals());
     }
-    
-    function balance() public view returns (uint) {
-        return token.balanceOf(address(this))
-                .add(IGOFController(controller).balanceOf(address(token)));
-    }
-    
+
     function setMin(uint _min) external onlyOwner{
         min = _min;
     }
@@ -55,18 +50,13 @@ contract GOFVault is ERC20, Ownable{
         earnLowerlimit = _earnLowerlimit;
     }
     
+    function balance() public view returns (uint) {
+        return token.balanceOf(address(this))
+                .add(IGOFController(controller).balanceOf(address(token)));
+    }
+    
     function available() public view returns (uint) {
         return token.balanceOf(address(this)).mul(min).div(max);
-    }
-    
-    function earn() public {
-        uint bal = available();
-        token.safeTransfer(controller, bal);
-        IGOFController(controller).earn(address(token), bal);
-    }
-    
-    function depositAll() external {
-        deposit(token.balanceOf(msg.sender));
     }
     
     function deposit(uint _amount) public {
@@ -86,9 +76,9 @@ contract GOFVault is ERC20, Ownable{
             earn();
         }
     }
-    
-    function withdrawAll() external {
-        withdraw(balanceOf(msg.sender));
+
+    function depositAll() external {
+        deposit(token.balanceOf(msg.sender));
     }
     
     function withdraw(uint _shares) public {
@@ -107,6 +97,16 @@ contract GOFVault is ERC20, Ownable{
         }
         
         token.safeTransfer(msg.sender, r);
+    }
+
+    function withdrawAll() external {
+        withdraw(balanceOf(msg.sender));
+    }
+
+    function earn() public {
+        uint bal = available();
+        token.safeTransfer(controller, bal);
+        IGOFController(controller).earn(address(token), bal);
     }
     
     function getPricePerFullShare() public view returns (uint) {
